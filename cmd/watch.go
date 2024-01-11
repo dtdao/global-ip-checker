@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/gen2brain/beeep"
 	"github.com/spf13/cobra"
 )
@@ -26,12 +27,13 @@ var checkVpnCmd = &cobra.Command{
 	Use:   "watch",
 	Short: "Watch for disconnect from provided public ip",
 	Run:   checkVpn,
-	Args:  cobra.MinimumNArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 }
 
+var ipify string = "https://api.ipify.org?format=json"
+
 const (
-	ipify   = "https://api.ipify.org?format=json"
-	timeout = 10 * time.Second
+	timeout time.Duration = 10 * time.Second
 )
 
 var pollingRate = 60 * time.Second
@@ -45,11 +47,19 @@ func checkVpn(cmd *cobra.Command, args []string) {
 	}
 
 	var ip string
-	if validIp := net.ParseIP(args[0]); validIp == nil {
-		fmt.Println("Please add a global IP for me to check")
-		return
+	if len(args) != 0 {
+		if validIp := net.ParseIP(args[0]); validIp == nil {
+			fmt.Println("Please add a global IP for me to check")
+			return
+		} else {
+			ip = validIp.String()
+		}
 	} else {
-		ip = validIp.String()
+		currentGlobalIp, error := CurrentGlobalIp()
+		if error != nil {
+			fmt.Println("Error getting global ip address:", error)
+		}
+		ip = currentGlobalIp
 	}
 
 	go func() {
@@ -77,10 +87,14 @@ func checkVpn(cmd *cobra.Command, args []string) {
 
 		fmt.Println(fmt.Sprintf("Watching for changes in the IP: %s", ip))
 
+		s := spinner.New(spinner.CharSets[35], 100*time.Millisecond)
+		s.UpdateSpeed(300 * time.Millisecond)
+		s.Start()
 		for {
 			select {
 			case <-interrupt:
 				fmt.Println("\nInterrupt signal received. Stopping...")
+				s.Stop()
 				return
 			default:
 				response, err := client.Get(ipify)

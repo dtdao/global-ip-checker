@@ -20,19 +20,17 @@ func init() {
 	rootCmd.AddCommand(getCurrentGlobalIpCmd)
 }
 
-func getCurrentGlobalIp(cmd *cobra.Command, args []string) {
+func CurrentGlobalIp() (string, error) {
 	response, error := http.Get(ipify)
 	if error != nil {
-		fmt.Println("Error Checking your global ip")
-		return
+		return "", error
 	}
 
 	defer response.Body.Close()
 	body, error := io.ReadAll(response.Body)
 
 	if error != nil {
-		fmt.Println("Error reading initial response body:", error)
-		return
+		return "", error
 	}
 
 	var globalIp PublicIp
@@ -40,11 +38,19 @@ func getCurrentGlobalIp(cmd *cobra.Command, args []string) {
 	error = json.Unmarshal(body, &globalIp)
 
 	if error != nil {
-		fmt.Println("Error unmarshalling initial JSON:", error)
-		return
+		return "", error
 	}
 
-	fmt.Println("Your current global ip is: ", globalIp.IP)
+	return globalIp.IP, nil
+}
+
+func getCurrentGlobalIp(cmd *cobra.Command, args []string) {
+	globalIp, error := CurrentGlobalIp()
+	if error != nil {
+		fmt.Println("Error fetching the global ip address: ", error)
+	}
+
+	fmt.Println("Your current global ip is: ", globalIp)
 	return
 
 }
